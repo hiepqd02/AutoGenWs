@@ -2,9 +2,10 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver import ActionChains
-from selenium.common.exceptions import NoAlertPresentException
-from selenium.common.exceptions import UnexpectedAlertPresentException
 from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import ElementNotInteractableException
+from selenium.common.exceptions import ElementClickInterceptedException
+
 
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -32,6 +33,7 @@ CHECK_BOX_SIZE = ".checkbox-size"
 
 SHOW_ANSWER_CHECKBOX = "#left-word-search-id > div > div.end-check-box > div:nth-child(1) > span > input"
 DIRECTION_CHECKBOX = "#left-word-search-id > div > div.end-check-box > div:nth-child(2) > span > input"
+SHOW_WORD_LIST = "#left-word-search-id > div > div.end-check-box > div:nth-child(3) > span > input"
 
 MENU_DIRECTIONS = "#left-word-search-id > div > div.word-directions > div:nth-child(2) "
 WORD_DIRECTION_OPTIONS = "#menu- > div> ul>li"
@@ -42,6 +44,8 @@ BUTTON_NAME = "#left-word-search-id > div > div.student-info > div.input-info > 
 BUTTON_GRADE = "#left-word-search-id > div > div.student-info > div.input-info > div:nth-child(2) > div > div > button"
 
 SAVE_BUTTON = "div.right-header > button"
+LOADING = ".new-loading-component"
+CONFIRM_BUTTON = "div.confirm"
 
 
 def init_browser():
@@ -51,10 +55,12 @@ def init_browser():
     return chrome_driver
 
 def open_test_page(driver):
-    title = driver.find_element(By.CSS_SELECTOR, "#left-word-search-id > div > div.simple-input > div:nth-child(1) > div.title" )
+    print("here")
+    title = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#left-word-search-id > div > div.simple-input > div:nth-child(1) > div.title")))
     for _ in range(10):
         title.click()
-  
+
+
 def fill_input(driver, locator, input):
     element = driver.find_element(By.CSS_SELECTOR, locator)
     element.send_keys(Keys.CONTROL, "a")
@@ -62,7 +68,8 @@ def fill_input(driver, locator, input):
 
 def set_category_id(driver, categoryId):
     element = driver.find_element(By.CSS_SELECTOR, WORD_LIST)
-    driver.execute_script(f"arguments[0].setAttribute('categoryId', '64740f3ed54f8f18183661ea');", element)
+    driver.execute_script(f"arguments[0].setAttribute('categoryId', {categoryId});", element)
+
 
 
 def set_student_info(driver):
@@ -77,23 +84,23 @@ def set_student_info(driver):
 
 def fill_list_word(driver, keywords):
     word_list_box = driver.find_element(By.CSS_SELECTOR, WORD_LIST)
-    # random.shuffle(keywords)
+    random.shuffle(keywords)
+    i = 0 
     for keyword in keywords:
+
         keyword = keyword.replace(".", "")
         try:
-            word_list_box.send_keys(keyword.strip(), Keys.ENTER)   
-        except UnexpectedAlertPresentException:
-            while True:
-                try:
-                    alert = driver.switch_to.alert
-                    alert.accept()    
-                except NoAlertPresentException:
-                    break
+            word_list_box.send_keys(keyword.strip(), Keys.ENTER)  
+        except ElementNotInteractableException:
+            print(i)
+            confirm_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CONFIRM_BUTTON)))
+            confirm_button.click()
+            if i == 5:
+                break
+            else:
+                i += 1
 
-            # Clear redundant word
-            actions = ActionChains(driver)
-            actions.key_down(Keys.CONTROL).send_keys(Keys.BACKSPACE).send_keys(Keys.BACKSPACE).key_up(Keys.CONTROL).perform()
-            break
+
 
 
 def select_random_shape(driver):
@@ -116,14 +123,21 @@ def select_random_directions(driver):
     option.click()
 
 
-def random_show_word_directions(driver):
+def random_show_word_list(driver):
     if random.choice([True, False]):
-        check_box = driver.find_element(By.CSS_SELECTOR, DIRECTION_CHECKBOX)
-        check_box.click()
+        show_word_list_box = driver.find_element(By.CSS_SELECTOR, SHOW_WORD_LIST)
+        show_word_list_box.click()
+    else:
+        if random.choice([True, False]):
+            try:
+                show_direction_box = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.CSS_SELECTOR, DIRECTION_CHECKBOX)))
+                show_direction_box.click()
+            except TimeoutException:
+                pass
     
 
 def save_ws(driver):
-    save_button = driver.find_element(By.CSS_SELECTOR, SAVE_BUTTON)
+    save_button = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, SAVE_BUTTON)))
     save_button.click()
 
 def new_browser(chrome_driver,categoryId, title, keywords):
@@ -135,16 +149,22 @@ def new_browser(chrome_driver,categoryId, title, keywords):
     set_student_info(chrome_driver)
 
     select_random_shape(chrome_driver)
+    
     select_random_size(chrome_driver) 
-    random_show_word_directions(chrome_driver)
+
     select_random_directions(chrome_driver)
+
+    random_show_word_list(chrome_driver)
 
     fill_list_word(chrome_driver, keywords)
 
     set_category_id(chrome_driver,categoryId)
-    save_ws(chrome_driver)
     try:
-        WebDriverWait(chrome_driver, 100).until(EC.invisibility_of_element((By.CSS_SELECTOR, ".new-loading-component")))
+        save_ws(chrome_driver)
+    except ElementClickInterceptedException:
+        pass
+    try:
+        WebDriverWait(chrome_driver, 10).until(EC.invisibility_of_element((By.CSS_SELECTOR, LOADING)))
         time.sleep(1)
         chrome_driver.close()
     except TimeoutError:
@@ -154,21 +174,24 @@ def new_browser(chrome_driver,categoryId, title, keywords):
 
 
 def main():
-    try:
+
         with open("keywordWordSearch.json") as file:
             data = json.load(file)
 
-        for topic in data:
-            title = topic["categoryName"]
-            categoryId = topic["categoryId"]
+        for topic in data[3:]:
+            print(topic["keyword"])
+            title = topic["keyword"] + " word search"
+            topic["parentIds"].append(topic["categoryId"])
+            categoryId = topic["parentIds"]
             topic_keywords = topic["words"]
-            
+
             for _ in range(5):
                 chrome_driver = webdriver.Chrome()
                 chrome_driver.set_window_size(1920, 1080)
+                time.sleep(1)
                 new_browser(chrome_driver, categoryId, title, topic_keywords)
-    except Exception as e:
-        print(e)
+    
+
 
 
 if __name__ == "__main__":
