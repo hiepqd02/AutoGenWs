@@ -5,17 +5,15 @@ from selenium.webdriver import ActionChains
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import ElementNotInteractableException
 from selenium.common.exceptions import ElementClickInterceptedException
-
-
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 import random
 import time
 import json
+from selenium.webdriver.chrome.options import Options
 
 
-
-URL = "http://wszone-web-hung1.cd.worksheetzone.org/word-search-maker"
+URL = "https://staging.worksheetzone.org/word-search-maker"
 
 # Selector 
 WORK_SEARCH_TITLE = "#mui-1"
@@ -55,7 +53,7 @@ def init_browser():
     return chrome_driver
 
 def open_test_page(driver):
-    print("here")
+    time.sleep(2)
     title = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#left-word-search-id > div > div.simple-input > div:nth-child(1) > div.title")))
     for _ in range(10):
         title.click()
@@ -78,9 +76,11 @@ def set_student_info(driver):
     flag = random.randint(1, 3)
 
     if flag == 1:
-        name_btn.click()
-    elif flag == 2:
         grade_btn.click()
+    elif flag == 2:
+        name_btn.click()
+        name_btn.click()
+    
 
 def fill_list_word(driver, keywords):
     word_list_box = driver.find_element(By.CSS_SELECTOR, WORD_LIST)
@@ -88,19 +88,17 @@ def fill_list_word(driver, keywords):
     i = 0 
     for keyword in keywords:
 
+
         keyword = keyword.replace(".", "")
         try:
             word_list_box.send_keys(keyword.strip(), Keys.ENTER)  
         except ElementNotInteractableException:
-            print(i)
-            confirm_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CONFIRM_BUTTON)))
-            confirm_button.click()
+            confirm_button = driver.find_element(By.CSS_SELECTOR, CONFIRM_BUTTON)
+            driver.execute_script("arguments[0].click();", confirm_button)
             if i == 5:
                 break
             else:
                 i += 1
-
-
 
 
 def select_random_shape(driver):
@@ -125,23 +123,20 @@ def select_random_directions(driver):
 
 def random_show_word_list(driver):
     if random.choice([True, False]):
-        show_word_list_box = driver.find_element(By.CSS_SELECTOR, SHOW_WORD_LIST)
-        show_word_list_box.click()
-    else:
-        if random.choice([True, False]):
-            try:
-                show_direction_box = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.CSS_SELECTOR, DIRECTION_CHECKBOX)))
-                show_direction_box.click()
-            except TimeoutException:
-                pass
-    
+        show_direction_box = driver.find_element(By.CSS_SELECTOR, DIRECTION_CHECKBOX)
+        show_direction_box.click()
+
 
 def save_ws(driver):
-    save_button = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, SAVE_BUTTON)))
-    save_button.click()
-
+    try:
+        save_button = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, SAVE_BUTTON)))
+        save_button.click()
+    except Exception as e:
+        print(e)
+        time.sleep(10000)
 def new_browser(chrome_driver,categoryId, title, keywords):
     chrome_driver.get(URL)
+    time.sleep(5)
 
     open_test_page(chrome_driver)
     time.sleep(1)
@@ -166,31 +161,36 @@ def new_browser(chrome_driver,categoryId, title, keywords):
     try:
         WebDriverWait(chrome_driver, 10).until(EC.invisibility_of_element((By.CSS_SELECTOR, LOADING)))
         time.sleep(1)
-        chrome_driver.close()
+        chrome_driver.quit()
     except TimeoutError:
         print("Can't save")
     
-
-
 
 def main():
 
         with open("keywordWordSearch.json") as file:
             data = json.load(file)
-
-        for topic in data[3:]:
+        ws_created = 0
+        for topic in data[6:]:
             print(topic["keyword"])
+            print(ws_created)
             title = topic["keyword"] + " word search"
             topic["parentIds"].append(topic["categoryId"])
             categoryId = topic["parentIds"]
             topic_keywords = topic["words"]
 
-            for _ in range(5):
+            for a in range(15):
+                print(a)
+                options = Options()
+                options.add_argument('--headless')
                 chrome_driver = webdriver.Chrome()
                 chrome_driver.set_window_size(1920, 1080)
                 time.sleep(1)
+
                 new_browser(chrome_driver, categoryId, title, topic_keywords)
-    
+                ws_created += 1
+
+
 
 
 
