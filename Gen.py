@@ -84,17 +84,17 @@ def set_student_info(driver):
 
 def fill_list_word(driver, keywords):
     word_list_box = driver.find_element(By.CSS_SELECTOR, WORD_LIST)
-    random.shuffle(keywords)
     i = 0 
     for keyword in keywords:
-
-
         keyword = keyword.replace(".", "")
         try:
-            word_list_box.send_keys(keyword.strip(), Keys.ENTER)  
+            word_list_box.send_keys(keyword.strip())  
+            time.sleep(0.1)
+            word_list_box.send_keys(Keys.ENTER)
         except ElementNotInteractableException:
             confirm_button = driver.find_element(By.CSS_SELECTOR, CONFIRM_BUTTON)
             driver.execute_script("arguments[0].click();", confirm_button)
+            word_list_box.send_keys(Keys.ENTER)
             if i == 5:
                 break
             else:
@@ -136,8 +136,7 @@ def save_ws(driver):
         time.sleep(10000)
 def new_browser(chrome_driver,categoryId, title, keywords):
     chrome_driver.get(URL)
-    time.sleep(5)
-
+    time.sleep(1)
     open_test_page(chrome_driver)
     time.sleep(1)
     fill_input(chrome_driver, WORK_SEARCH_TITLE, title)
@@ -154,10 +153,9 @@ def new_browser(chrome_driver,categoryId, title, keywords):
     fill_list_word(chrome_driver, keywords)
 
     set_category_id(chrome_driver,categoryId)
-    try:
-        save_ws(chrome_driver)
-    except ElementClickInterceptedException:
-        pass
+
+    save_ws(chrome_driver)
+
     try:
         WebDriverWait(chrome_driver, 10).until(EC.invisibility_of_element((By.CSS_SELECTOR, LOADING)))
         time.sleep(1)
@@ -170,26 +168,33 @@ def main():
 
         with open("keywordWordSearch.json") as file:
             data = json.load(file)
+        topic_index = 0
         ws_created = 0
-        for topic in data[6:]:
-            print(topic["keyword"])
-            print(ws_created)
-            title = topic["keyword"] + " word search"
+
+        for topic in data:
+            print(f"Topic index: {topic_index+1}")
+            print(f"Ws Created: {ws_created}")
+            
+            topic_index +=1
+            
             topic["parentIds"].append(topic["categoryId"])
             categoryId = topic["parentIds"]
-            topic_keywords = topic["words"]
 
-            for a in range(15):
-                print(a)
+            for ws in topic["data"]:
+                title = ws["title"]
+                topic_keywords = sorted(ws["words"], key=len, reverse=True)
+
                 options = Options()
                 options.add_argument('--headless')
                 chrome_driver = webdriver.Chrome()
                 chrome_driver.set_window_size(1920, 1080)
                 time.sleep(1)
-
-                new_browser(chrome_driver, categoryId, title, topic_keywords)
-                ws_created += 1
-
+                try:
+                    new_browser(chrome_driver, categoryId, title, topic_keywords)
+                    ws_created += 1
+                
+                except Exception as e:
+                    print(e)
 
 
 
